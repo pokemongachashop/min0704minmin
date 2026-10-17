@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0b0a1a;--glass:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);--tx:#ecebff;--mut:#9a98c4;
---pur:#8b5cf6;--blu:#5865f2;--cy:#4de3ff;--ok:#3ddc97;--bad:#ff4d6d}
+--pur:#8b5cf6;--blu:#5865f2;--cy:#4de3ff;--ok:#3ddc97;--bad:#ff4d6d;--yel:#ffd166}
 *{box-sizing:border-box;margin:0}
 html,body{min-height:100%}
 body{background:radial-gradient(900px 500px at 15% -10%,rgba(139,92,246,.35),transparent 60%),
@@ -76,17 +76,20 @@ font-family:'Black Han Sans';font-size:56px;text-shadow:0 0 18px var(--cy)}
 @keyframes fl{0%{opacity:1}100%{opacity:0}}
 .mine{margin-top:14px;padding:16px;text-align:center}
 .mine .big{font-size:26px}
-/* 랭킹 */
+/* 랭킹 / 관리자 모니터 */
 .row{display:grid;grid-template-columns:44px 1fr auto auto;gap:10px;align-items:center;
 padding:11px 12px;border-bottom:1px solid var(--line)}
 .row:last-child{border:0}
 .row.me{background:rgba(139,92,246,.22);border-radius:12px}
+.row.dead{opacity:.5}
 .rk{font-family:'Black Han Sans';font-size:20px;text-align:center}
 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fl{font-weight:600;font-variant-numeric:tabular-nums}
 .badge{font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.badge.playing{color:#fff;border-color:var(--pur);background:rgba(139,92,246,.3)}
 .badge.cleared{color:var(--ok);border-color:var(--ok)}.badge.cashed{color:var(--cy);border-color:var(--cy)}
-.badge.fell{color:var(--bad);border-color:var(--bad)}
+.badge.fell{color:var(--bad);border-color:var(--bad)}.badge.timeout{color:var(--yel);border-color:var(--yel)}
+.stats{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:10px}
 @media(min-width:768px){body{padding:32px}.door{height:200px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -130,6 +133,18 @@ padding:11px 12px;border-bottom:1px solid var(--line)}
     <p class="mut" style="margin-top:8px" id="waitSub"></p>
   </section>
 
+  <!-- 2-2. 관리자 실시간 모니터 (게임 진행 중 관리자에게만 표시) -->
+  <section id="monitor" class="screen">
+    <div class="hud"><span class="mut">남은 시간</span><span class="time" id="mTime">2:00</span></div>
+    <div class="bar"><i id="mBar"></i></div>
+    <div class="glass mine" style="margin:0 0 14px">
+      <div class="big" id="mSum">참가자 집계 중...</div>
+      <div class="stats" id="mStats"></div>
+      <p class="mut" style="margin-top:8px;font-size:13px">진행 중인 참가자가 한 명도 남지 않으면 자동으로 종료됩니다.</p>
+    </div>
+    <div class="glass" style="padding:8px"><div id="mBoard"></div></div>
+  </section>
+
   <!-- 3. 게임 -->
   <section id="game" class="screen">
     <div class="hud"><span class="mut">남은 시간</span><span class="time" id="time">2:00</span></div>
@@ -171,7 +186,7 @@ padding:11px 12px;border-bottom:1px solid var(--line)}
       그다음 '사용자' 탭 > 사용자 추가 로 관리자 계정(이메일+비밀번호)을 만드세요.
       (이 이메일을 아래 ADMIN_EMAIL 에 똑같이 적습니다. 비밀번호는 코드에 적지 않아요!)
    4) 빌드 > Firestore Database > 데이터베이스 만들기 > 규칙(Rules)에 아래를 붙여넣고 게시
-      ※ 'admin@example.com' 두 곳이 아니라 한 곳만 ADMIN_EMAIL 과 같게 바꾸세요.
+      ※ 'admin@example.com' 을 ADMIN_EMAIL 과 같게 바꾸세요.
         rules_version = '2';
         service cloud.firestore { match /databases/{d}/documents {
           function isAdmin() {
@@ -185,33 +200,20 @@ padding:11px 12px;border-bottom:1px solid var(--line)}
    5) 이 파일을 GitHub 저장소에 index.html 로 올리고 Settings > Pages 에서 배포
    ===================================================================== */
 const firebaseConfig = {
-    apiKey: "AIzaSyDSGExITe-BnKFHylAUqvvP8GvSVy53vlc",
-
-
-  authDomain: "pokemingming.firebaseapp.com",
-
-
-  projectId: "pokemingming",
-
-
-  storageBucket: "pokemingming.firebasestorage.app",
-
-
-  messagingSenderId: "1032382958276",
-
-
-  appId: "1:1032382958276:web:c62cc7827637ae12f99791"
-
-
+  apiKey: "AIzaSyDSGExITe-BnKFHylAUqvvP8GvSVy53vlc",
+  authDomain: "pokemingming.firebaseapp.com",
+  projectId: "pokemingming",
+  storageBucket: "pokemingming.firebasestorage.app",
+  messagingSenderId: "1032382958276",
+  appId: "1:1032382958276:web:c62cc7827637ae12f99791"
 };
 
-/* ★ 관리자 이메일: Firebase Authentication 에 만든 관리자 계정 이메일과 똑같이 적으세요.
-   비밀번호는 코드에 없고 Firebase 가 검증합니다. 비밀번호를 바꾸려면 Firebase 콘솔 >
-   Authentication > 사용자 에서 비밀번호를 재설정하면 됩니다. */
+/* ★ 관리자 이메일: Firebase Authentication 에 만든 관리자 계정 이메일과 똑같이 적으세요. */
 const ADMIN_EMAIL = "pokepack1010@example.com";
 
-const DURATION = 120; // 제한시간(초)
-const MAX_FLOOR = 100; // 최고 층수
+const DURATION = 120;      // 제한시간(초)
+const MAX_FLOOR = 100;     // 최고 층수
+const AUTO_END_GRACE = 5;  // 시작 후 몇 초 동안은 자동 종료 판정을 하지 않음(참가자 입장 대기)
 /* ===================================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -224,11 +226,13 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const gameRef = doc(db, "gameState", "main");
 const $ = id => document.getElementById(id);
-const LABEL = { cleared: "완주", cashed: "포기", fell: "추락", timeout: "시간종료" };
+const LABEL = { playing: "진행중", cleared: "완주", cashed: "포기", fell: "추락", timeout: "시간종료" };
 
 let offset = 0; // (서버 시간 - 내 기기 시간) 보정값(ms)
 let game = { status: "waiting", round: 0, startAt: 0 };
-let me = null, isAdmin = false, play = null, busy = false, unsubBoard = null, boardRound = null, adminEnded = false;
+let me = null, isAdmin = false, play = null, busy = false;
+let unsubList = null, listRound = null, roundList = []; // 이번 라운드 참가자 실시간 목록
+let adminEnded = false, lastRound = null;
 const nowS = () => Date.now() + offset; // 서버 기준 현재 시각
 const endAt = () => game.startAt + DURATION * 1000; // 종료 절대시각
 
@@ -236,7 +240,7 @@ const endAt = () => game.startAt + DURATION * 1000; // 종료 절대시각
 function show(id) { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id)); }
 const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
-/* ---------- 시간 보정: 서버 시각을 한 번 받아 내 기기와의 차이를 계산 ---------- */
+/* ---------- 시간 보정 ---------- */
 async function syncClock(ref) {
   const t0 = Date.now();
   await setDoc(ref, { seen: serverTimestamp() }, { merge: true });
@@ -268,7 +272,7 @@ async function login() {
     enter();
   } catch (e) { console.error(e); err("접속 실패: Firebase 설정과 Firestore 규칙을 확인해 주세요."); }
 }
-/* ---------- 관리자 로그인: Firebase Authentication (서버가 비밀번호를 검증) ---------- */
+/* ---------- 관리자 로그인 ---------- */
 async function adminLogin() {
   const email = $("aEmail").value.trim(), pw = $("aPw").value, err = m => $("aErr").textContent = m;
   err("");
@@ -285,10 +289,11 @@ function enter() {
   $("admin").classList.toggle("on", isAdmin);
   onSnapshot(gameRef, s => { // 게임 상태 실시간 동기화
     game = s.exists() ? s.data() : { status: "waiting", round: 0, startAt: 0 };
+    if (game.round !== lastRound) { lastRound = game.round; adminEnded = false; } // 새 라운드마다 초기화
     render();
   });
   setInterval(tick, 250);
-  document.addEventListener("visibilitychange", tick); // 탭 복귀 즉시 보정
+  document.addEventListener("visibilitychange", tick);
   window.addEventListener("focus", tick);
 }
 
@@ -299,31 +304,35 @@ function curStatus() {
 function render() {
   const st = curStatus();
   if (isAdmin) $("adminInfo").textContent = "상태: " + st;
-  if (st !== "ended" && unsubBoard) { unsubBoard(); unsubBoard = null; boardRound = null; }
+  const needList = st === "ended" || (isAdmin && st === "playing");
+  if (!needList && unsubList) { unsubList(); unsubList = null; listRound = null; roundList = []; }
   if (st === "waiting") { play = null; $("waitMsg").textContent = "관리자가 게임을 시작할 때까지 대기 중입니다..."; $("waitSub").textContent = ""; show("wait"); }
   else if (st === "playing") {
-    if (isAdmin) { $("waitMsg").textContent = "게임 진행 중입니다"; show("wait"); }
+    if (isAdmin) { show("monitor"); listenRound(); }
     else { initPlay(); show("game"); }
   } else if (st === "ended") {
     show("result");
     if (!isAdmin && play && play.state === "playing") commit("timeout"); // 시간 종료 → 현재 층 자동 확정
-    listenBoard();
+    listenRound();
   }
+  drawLists();
   tick();
 }
 
-/* ---------- 남은 시간 (절대 타임스탬프 기반이라 백그라운드에서도 정확) ---------- */
+/* ---------- 남은 시간 ---------- */
 function tick() {
   if (game.status !== "playing") return;
   const left = endAt() - nowS();
-  $("time").textContent = fmt(left);
-  $("time").classList.toggle("low", left < 10000);
-  $("bar").style.width = Math.max(0, Math.min(100, left / (DURATION * 10))) + "%";
-  $("waitSub").textContent = isAdmin ? "남은 시간 " + fmt(left) : "";
+  const w = Math.max(0, Math.min(100, left / (DURATION * 10))) + "%";
+  for (const [t, b] of [["time", "bar"], ["mTime", "mBar"]]) {
+    $(t).textContent = fmt(left);
+    $(t).classList.toggle("low", left < 10000);
+    $(b).style.width = w;
+  }
   if (left <= 0) {
     if (isAdmin && !adminEnded) { adminEnded = true; setDoc(gameRef, { status: "ended" }, { merge: true }); }
     render();
-  }
+  } else checkAutoEnd();
 }
 
 /* ---------- 플레이 ---------- */
@@ -332,11 +341,17 @@ function initPlay() {
   if (play && play.round === game.round) return;
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS)); } catch (e) {}
-  if (me.data.round === game.round && me.data.state !== "none") { // 이미 확정한 라운드
-    play = { round: game.round, floor: me.data.floor, state: me.data.state, reachedAt: me.data.reachedAt };
-  } else if (saved && saved.nick === me.nick && saved.round === game.round) play = saved; // 새로고침 복구
+  if (saved && (saved.nick !== me.nick || saved.round !== game.round)) saved = null;
+  const d = me.data, sameRound = d.round === game.round;
+  if (sameRound && d.state && d.state !== "none" && d.state !== "playing") // 이미 확정한 라운드
+    play = { nick: me.nick, round: game.round, floor: d.floor, state: d.state, reachedAt: d.reachedAt };
+  else if (saved) play = saved; // 새로고침 복구
+  else if (sameRound && d.state === "playing")
+    play = { nick: me.nick, round: game.round, floor: d.floor, state: "playing", reachedAt: d.reachedAt };
   else play = { nick: me.nick, round: game.round, floor: 1, state: "playing", reachedAt: nowS() };
-  adminEnded = false;
+  save();
+  // 참가 등록: DB에 이번 라운드 기록이 없거나 다르면 올려서 관리자 화면에 보이게 함
+  if (!sameRound || d.state !== play.state || d.floor !== play.floor) pushProgress();
   drawFloor(); drawPlayState();
 }
 function drawFloor() { $("floorNum").textContent = play.floor; $("prog").style.width = play.floor + "%"; }
@@ -352,6 +367,13 @@ function drawPlayState() {
 const save = () => localStorage.setItem(LS, JSON.stringify(play));
 function flash(cls) { const f = $("fx"); f.className = ""; void f.offsetWidth; f.className = cls; }
 
+/* 진행 상황 공유: 층이 오를 때마다 1회 저장 → 관리자 화면에 실시간 반영 */
+function pushProgress() {
+  const rec = { round: play.round, floor: play.floor, state: play.state, reachedAt: play.reachedAt };
+  me.data = { ...me.data, ...rec };
+  setDoc(me.ref, rec, { merge: true }).catch(e => console.error(e));
+}
+
 function pick(side) {
   if (busy || !play || play.state !== "playing") return;
   if (nowS() >= endAt()) return render();
@@ -365,7 +387,7 @@ function pick(side) {
     if (ok) {
       play.floor++; play.reachedAt = nowS(); save(); drawFloor(); flash("ok");
       const f = $("floorNum"); f.classList.remove("up"); void f.offsetWidth; f.classList.add("up");
-      if (play.floor >= MAX_FLOOR) commit("cleared");
+      if (play.floor >= MAX_FLOOR) commit("cleared"); else pushProgress();
     } else {
       flash("bad"); $("floorNum").classList.add("fall");
       setTimeout(() => $("floorNum").classList.remove("fall"), 900);
@@ -379,7 +401,7 @@ function resetDoors() {
     const d = $(id); d.classList.remove("open", "ok", "bad"); d.disabled = false; d.querySelector(".lbl").textContent = t;
   }
 }
-/* 기록 확정: DB에는 확정 시점에만 저장 (무료 플랜의 읽기/쓰기 한도 절약) */
+/* 기록 확정 */
 async function commit(state) {
   if (play.state !== "playing") return;
   play.state = state; save(); drawFloor(); drawPlayState();
@@ -388,27 +410,54 @@ async function commit(state) {
   catch (e) { console.error(e); setTimeout(() => setDoc(me.ref, rec, { merge: true }), 2000); }
 }
 
-/* ---------- 리더보드 ---------- */
-function listenBoard() {
-  if (unsubBoard && boardRound === game.round) return;
-  if (unsubBoard) unsubBoard();
-  boardRound = game.round;
-  unsubBoard = onSnapshot(query(collection(db, "users"), where("round", "==", game.round)), s => {
+/* ---------- 이번 라운드 참가자 실시간 목록 (관리자 모니터 + 결과 랭킹 공용) ---------- */
+function listenRound() {
+  if (unsubList && listRound === game.round) return;
+  if (unsubList) unsubList();
+  listRound = game.round; roundList = [];
+  unsubList = onSnapshot(query(collection(db, "users"), where("round", "==", game.round)), s => {
     // 1순위: 높은 층 / 2순위: 그 층에 더 먼저 도달한 사람
-    const list = s.docs.map(d => d.data()).sort((a, b) => b.floor - a.floor || a.reachedAt - b.reachedAt);
-    const medal = ["🥇", "🥈", "🥉"];
-    $("board").innerHTML = list.length ? list.map((u, i) =>
-      `<div class="row${me && u.nick === me.nick ? " me" : ""}"><span class="rk">${medal[i] || i + 1}</span>` +
-      `<span class="nm"></span><span class="fl">${u.floor}층</span><span class="badge ${u.state}">${LABEL[u.state] || u.state}</span></div>`).join("")
-      : '<p class="center mut" style="padding:20px">기록이 없습니다.</p>';
-    [...$("board").querySelectorAll(".nm")].forEach((el, i) => el.textContent = list[i].nick); // XSS 방지
+    roundList = s.docs.map(d => d.data()).sort((a, b) => b.floor - a.floor || a.reachedAt - b.reachedAt);
+    drawLists();
+    checkAutoEnd();
+  });
+}
+function drawRows(el, list, emptyMsg) {
+  const medal = ["🥇", "🥈", "🥉"];
+  el.innerHTML = list.length ? list.map((u, i) =>
+    `<div class="row${me && u.nick === me.nick ? " me" : ""}${u.state === "fell" ? " dead" : ""}"><span class="rk">${medal[i] || i + 1}</span>` +
+    `<span class="nm"></span><span class="fl">${u.floor}층</span><span class="badge ${u.state}">${LABEL[u.state] || u.state}</span></div>`).join("")
+    : `<p class="center mut" style="padding:20px">${emptyMsg}</p>`;
+  [...el.querySelectorAll(".nm")].forEach((n, i) => n.textContent = list[i].nick); // XSS 방지
+}
+function drawLists() {
+  if (!unsubList) return;
+  const st = curStatus(), list = roundList;
+  if (st === "ended") {
+    drawRows($("board"), list, "기록이 없습니다.");
     const idx = me ? list.findIndex(u => u.nick === me.nick) : -1;
     $("myRank").textContent = idx >= 0 ? `내 순위 ${idx + 1}위 (전체 ${list.length}명)` : isAdmin ? `참가자 ${list.length}명` : "최종 랭킹";
-  });
+  } else if (isAdmin && st === "playing") {
+    drawRows($("mBoard"), list, "아직 입장한 참가자가 없습니다.");
+    const cnt = {}; list.forEach(u => cnt[u.state] = (cnt[u.state] || 0) + 1);
+    $("mSum").textContent = `참가자 ${list.length}명 · 생존 ${cnt.playing || 0}명`;
+    $("mStats").innerHTML = ["playing", "fell", "cashed", "cleared"]
+      .map(k => `<span class="badge ${k}">${LABEL[k]} ${cnt[k] || 0}</span>`).join("");
+  }
+}
+
+/* ---------- 자동 종료: 진행 중인 참가자가 한 명도 남지 않으면 (관리자 브라우저가 실행) ---------- */
+function checkAutoEnd() {
+  if (!isAdmin || adminEnded || curStatus() !== "playing") return;
+  if (listRound !== game.round || !roundList.length) return;
+  if (nowS() - game.startAt < AUTO_END_GRACE * 1000) return;
+  if (roundList.every(u => u.state !== "playing")) {
+    adminEnded = true;
+    adminWrite({ status: "ended" });
+  }
 }
 
 /* ---------- 관리자 버튼 ---------- */
-/* 화면에서 막을 뿐 아니라, Firestore 규칙이 관리자 이메일이 아니면 쓰기를 거부합니다. */
 const adminWrite = async data => {
   if (!isAdmin || !auth.currentUser) return alert("관리자 로그인이 필요합니다.");
   try { await setDoc(gameRef, data, { merge: true }); }
